@@ -54,14 +54,17 @@ BITMAP_HEIGHT:    .word   240
 ARKAMIPS_STRING:	.asciiz	"ArkaMIPS"
 .word 0xC0FFEE
 		
-INTRO_STRING:		.asciiz "Press h or k to play"
+INTRO_STRING:		.asciiz "Press LEFT or RIGHT to play"
 .word 0xC0FFEE
 		
 GAME_OVER_STRING1:	.asciiz "Game Over"
 .word 0xC0FFEE
 		
-GAME_OVER_STRING2:	.asciiz "Press h or k to restart"
+GAME_OVER_STRING2:	.asciiz "Press LEFT or RIGHT to restart"
 .word 0xC0FFEE
+
+INTRO_SPACING:	.word	4		# Spacing between the squares on the intro
+INTRO_SQUARES:	.word	4		# How many squares on the intro screen
 		
 # Colors for the bitmap display.
 # It only uses the last two words with some values
@@ -70,7 +73,7 @@ GAME_OVER_STRING2:	.asciiz "Press h or k to restart"
 # The raw data format is:
 #      (16 zero bits) 0000 0000 BBGG GRRR
 		
-DARK_RED:		.word   0x00000003
+DARK_RED:		.word   0x00000004
 LIME_GREEN:		.word	0x0000007B		
 BLUE:			.word   0x000000C0
 DARK_MAGENTA:	.word   0x000000C3		
@@ -96,24 +99,16 @@ COLOR_AMMOUNT:	.word	11
 
 # Black and Red are here because we don't print any
 # blocks with them.
+# The pad and the ball gets printed with red but black
+# is the main background of the game.
 RED:	.word   0x00000007		
 BLACK:	.word	0x00000000
 		
-# Barrier values
-# (all the tiles on the top that constantly drop)
-BARR_SPEED:		.word   250
-BARR_POSX_INIT:	.word   100
-BARR_POSY:		.word   220
-BARR_WIDTH:		.word   45
-BARR_HEIGHT:	.word   10
-BARR_COLOR:		.word   0xFFFF00
-
-# Initial values of the player/ball
+# Initial values of the player/ball.
+# They're all in pixels.
 		
 BALL_SPEEDX_INIT:	.word   2
 BALL_SPEEDY_INIT:	.word   1
-BALL_POSX_INIT:		.word   175
-BALL_POSY_INIT:		.word   190
 BALL_WIDTH:			.word   10
 BALL_HEIGHT:		.word	10
 
@@ -125,7 +120,10 @@ PLAYER_HEIGHT:		.word	10
 PLAYER_LIVES_INIT:	.word   2	# How many lives the player has initially
 								# (counting from zero)
 		
-BORDER_SIZE:		.word   1	# Size of the border on all 4 sides
+PLAYER_SCORE_INIT:	.word	0	# Initial score is always zero.
+PLAYER_SCORE_BLOCK:	.word	1	# How much the player gets by breaking a block.
+		
+BORDER_SIZE:		.word   1	# Size of the border on all 3 sides
 
 LIVES_WIDTH:		.word	5 	# Width of the life indicator
 LIVES_HEIGHT:		.word	10	# Height of the life indicator
@@ -158,7 +156,7 @@ DEFEAT_COLOR:           .word 0xFF0000
 ANIMATION_DELAY:        .word 5
 ANIMATION_DELAY_FINAL:  .word 1000
 
-# Syscall aliases, use them to load $v0 when calling syscall.
+# Syscall aliases, use them to load $v0 when calling 'syscall'
 		
 # Quits the application		
 SYSCALL_EXIT:   		.word   10
@@ -170,6 +168,12 @@ SYSCALL_EXIT:   		.word   10
 #     right key ('k').
 # $v0 0 if the key's not pressed, 1 if it is.    
 SYSCALL_KEYBOARD:		.word	50
+
+# Prints a zero-ended string on the screen.
+SYSCALL_PRINT_STRING:	.word	4
+		
+# Prints an integer on the screen.
+SYSCALL_PRINT_INT:		.word	1
 		
 ### Now we have the global "variables",
 ### that we can change during the game
@@ -191,6 +195,7 @@ PLAYER_X:		.word	150
 PLAYER_Y:		.word	70
 PLAYER_SPEEDX:	.word   2
 PLAYER_LIVES:	.word	2
+PLAYER_SCORE:	.word	0
 		
 # # # # # # # # # # # # # # # # # # # # # # # # #
 # _____  ____  _    _____
@@ -204,13 +209,17 @@ PLAYER_LIVES:	.word	2
 # First, it initializes some stuff and then it all gets
 # trapped on the game loop.
 main:
-		jal		intro 	# Keep showing the intro until player hits a key
+		## Keep showing the intro until player hits a key
+		jal		intro
 
+		li		$a0, 1
+		jal		increase_score	# Printing score for the first time
+		
 		## Actually starts stuff
+		jal		init_player		
 		jal		init_ball		
-		jal		init_player
 		jal		init_blocks
-				
+
 gameloop:
 		jal		wait
 
@@ -221,13 +230,17 @@ gameloop:
 		jal		update_ball
 		
 		j		gameloop
-
-		## Will never actually get here.
-		## How sad.
-        lw      $v0, SYSCALL_EXIT   # Exiting the game.
-        syscall                 	
-#
-# # # # #
+		# # # # # # # # #
+		# 
+		# Will never actually get here.
+		# How sad.
+		
+end:	lw      $v0, SYSCALL_EXIT
+        syscall
+		# # # #
+		#
+		#
+		#
         #  ____  _      ___
         # | |_  | |\ | | | \
         # |_|__ |_| \| |_|_/  of code. Here comes the...
@@ -263,58 +276,111 @@ gameloop:
 #
 intro:
 		addi	$sp, $sp, -4
-		sw		$ra, ($sp)		# Saving $ra
-		
-		## Will clear the screen a lot of times waiting
-		## for the user to press any key ('h' or 'k')
-intro_loop:
-		lw		$a0, BLUE 		# bg
-		jal		clear_screen
-
-
-		lw		$a0, RED		# Getting FG/BG color
-		lw		$a1, BLUE
-		jal		get_color
-		move	$a3, $v0
-		
-		la		$a0, ARKAMIPS_STRING	# Then the text
-		li		$a1, 20
-		li		$a2, 200
-		li		$v0, 4
-		syscall
-
-		la		$a0, INTRO_STRING	# Then the text
-		li		$a1, 20
-		li		$a2, 220
-		li		$v0, 4
-		syscall
-		
-		jal		is_any_key_pressed 		# Then the key
-		bne		$v0, $zero, intro_quit
+		sw		$ra, ($sp)			# Saving $ra
 
 		lw		$a0, BLACK
 		jal		clear_screen
-
-		lw		$a0, RED
-		lw		$a1, BLACK
+		
+		## First, this is the text on the lower part of the screen.
+		## It only gets printed once because the squares don't touch it.
+		
+		lw		$a0, RED				# Get Foreground/Background
+		lw		$a1, BLACK				# color, in our case, RED/BLACK
 		jal		get_color
 		move	$a3, $v0
 		
-		la		$a0, ARKAMIPS_STRING
+		la		$a0, ARKAMIPS_STRING	# Show string1
 		li		$a1, 20
 		li		$a2, 200
-		li		$v0, 4
+		lw		$v0, SYSCALL_PRINT_STRING
 		syscall
 
-		la		$a0, INTRO_STRING	# Then the text
+		la		$a0, INTRO_STRING		# Show string2
 		li		$a1, 20
 		li		$a2, 220
-		li		$v0, 4
+		lw		$v0, SYSCALL_PRINT_STRING
 		syscall
-		
-		jal		is_any_key_pressed 		# if (!getch()) goto intro_loop
-		beq		$v0, $zero, intro_loop
 
+		## The intro will print n squares with changing colors.
+		## Their sizes depend on the screen size. They'll be:
+		##
+		## square_width = (screen_width - ((n + 1) * spacing))/n
+		##
+		## That spacing is the width between each square.
+
+		lw		$t0, INTRO_SQUARES	# number of squares (n)
+		add		$t0, $t0, 1			# n + 1
+		lw		$t1, INTRO_SPACING	# spacing
+		mult	$t0, $t1			#
+		mflo	$t0					# (n + 1) * spacing
+		lw		$t1, INTRO_SQUARES	# n again
+		lw		$t1, BITMAP_WIDTH	# screen_width
+		sub		$t0, $t1, $t0		# screen_width - ((n + 1) * spacing)
+		div		$t0, $t1			#
+		mflo	$t0					# (screen_width - ((n + 1) * spacing))/n
+		
+		## Now $t0 contains the width each square needs to have.
+
+		## On our intro, we will print some squares, each with a
+		## random color. Their colors will change on each frame,
+		## making a very colourful experience.
+		## 
+		## All of this while waiting for the user to press
+		## any key (left or right).
+
+		add		$t9, $zero, $zero	# This will hold the number of the color
+									# to print the current rectangle.
+									# It will start by 0 and increment, while
+									# keeping it's limit inside COLOR_AMMOUNT.
+		
+intro_loop:
+		add		$t1, $zero, $zero 	# i = 0
+		
+intro_sub_loop:
+		## This prints all the 4 squares and checks for input once
+		
+		lw		$t2, INTRO_SQUARES		#
+		addi	$t2, $t2, -1			#
+		slt		$t2, $t1, $t2			# if (i < (n - 1)) then continue
+		beq		$t2, $zero, intro_loop	# else, restart the loop
+		
+		add		$t9, $t9, 1		   	# color++
+		lw		$t7, COLOR_AMMOUNT	# (C is the max number of colors I have)
+		div		$t9, $t7			#
+		mfhi	$t8					# color % C
+		sll		$t8, $t8, 2			# [color % C]
+		la		$t7, DARK_RED		# address of the first color
+		add		$t8, $t8, $t7		# colors[color % C]
+		lw		$t8, ($t8)			# get colors[color % C]
+
+		## $t8 has the address of the color to use on the current rectangle
+
+		## And now.. the x position of each rectangle
+		## 
+		## That's according to:
+		##
+		## x = (i * (rectangle_width + spacing)) + spacing
+		
+		lw		$t3, INTRO_SPACING	# spacing
+		add		$t3, $t3, $t0		# (rectangle_width + spacing)
+		mult	$t3, $t1			#
+		mflo	$t3					# i * (rectangle_width + spacing)
+		add		$t3, $t3, $t0		# spacing + (i * (rectangle_width + spacing))
+
+		move	$a0, $t3		   	# x
+		lw		$a1, INTRO_SPACING	# y
+		move	$a2, $t0			# w
+		li		$a2, 30			# w		
+#		li		$a3, 30				# h
+		move	$v0, $t8			# color
+		jal		print_rect
+		
+		jal		is_any_key_pressed 		# if any key pressed, get the
+		bne		$v0, $zero, intro_quit	# fucking out of here
+		
+		add		$t1, $t1, 1		   # i++		
+		j		intro_sub_loop
+		
 intro_quit:		
 		lw		$a0, BLACK		# Quitting the intro
 		jal		clear_screen
@@ -322,28 +388,59 @@ intro_quit:
 		lw		$ra, ($sp)		# Restoring $ra
 		addi	$sp, $sp, 4
 		jr		$ra
-		
-# Resets ball's	position.
+
+# # # # # # # # # # # # # # # # # # # # # # # # 
+# Resets ball's	position, based on the player's.
+#
+# NOTE: If this is the first time you're calling this, you MUST call
+#       init_player first!
 # 
 # Internal use:
 # $ra
 # $t0
+# 
 init_ball:
 		add		$sp, $sp, -4
 		sw		$ra, ($sp)
 		
-		lw		$t0, BALL_POSX_INIT
-		sw		$t0, BALL_X
-		lw		$t0, BALL_POSY_INIT
-		sw		$t0, BALL_Y
+		## The ball's initial position is right on top and the
+		## middle of the bat.
+		##                __
+		##         ______|__|______   <-- Liek this
+		##        |________________|
+		##
+		## Thus, it will be:
+		## ball_x = player_x + player_width/2 - ball_width/2
+		## ball_y = player_y - ball_height
+		
+		lw		$t0, PLAYER_X		# player_x
+		lw		$ra, PLAYER_WIDTH	# player_width
+		srl		$ra, $ra, 1			# player_width/2
+		
+		add		$t0, $t0, $ra		# player_x + player_width/2
+
+		lw		$ra, BALL_WIDTH		# ball_width
+		srl		$ra, $ra, 1			# ball_width/2
+		
+		sub		$t0, $t0, $ra		# player_x + player_width/2 - ball_width/2
+		sw		$t0, BALL_X			# saving...
+
+		lw		$t0, PLAYER_Y		# player_y
+		lw		$ra, BALL_HEIGHT	# ball_height
+		
+		sub		$t0, $t0, $ra		# player_y - ball_height
+		sw		$t0, BALL_Y			# saving...
+		
 		lw		$t0, BALL_SPEEDX_INIT
 		sw		$t0, BALL_SPEEDX
 		lw		$t0, BALL_SPEEDY_INIT
 		sw		$t0, BALL_SPEEDY
+		
 		lw		$ra, ($sp)
 		add		$sp, $sp, 4
 		jr		$ra
-		
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 		
 # Initializates information about the blocks based on the array
 # BLOCKS at '.data'.
 # Will get columns count, rows count and width/heigth in pixels
@@ -358,6 +455,9 @@ init_ball:
 # $t5
 # $t6		
 init_blocks:
+		add		$sp, $sp, -4
+		sw		$ra, ($sp)
+		
 		## First, we copy the level from the original part to the
 		## new one, efectively restarting the level
 
@@ -475,12 +575,17 @@ init_blocks_loop_rows_end:
 		mflo	$t0
 		
 		sw		$t0, BLOCKS_HEIGHT # saving, yay!
+
+		lw		$ra, ($sp)
+		add		$sp, $sp, 4
 		jr		$ra
 		
 # # # # # # # # # # # # # # # # #
 # Initializes player's variables.
 #
-#
+# Internal Use:
+# $t0
+# 
 init_player:
 		add		$sp, $sp, -4
 		sw		$ra, ($sp)
@@ -493,6 +598,11 @@ init_player:
 		sw		$t0, PLAYER_SPEEDX
 		lw		$t0, PLAYER_LIVES_INIT
 		sw		$t0, PLAYER_LIVES
+		lw		$t0, PLAYER_SCORE_INIT
+		sw		$t0, PLAYER_SCORE
+		
+#		li		$a0, 0
+#		jal		increase_score	# Printing score for the first time
 		
 		lw		$ra, ($sp)
 		add		$sp, $sp, 4
@@ -578,7 +688,7 @@ update_ball_test_collision_player:
 
 		li		$a0, 1
 		jal		invert_ball_axis
-		
+
 		## Testing if ball is outside of the bounds of the screen,
 		## making it bounce if it is.
 		## 
@@ -746,6 +856,19 @@ update_player_test_right_key:
 		## right key pressed, make it move!
 		li		$a0, 1
 		jal		move_player
+### ###################################################################################### ###################################################################################### ###################################################################################### ###################################################################################### ###################################################################################### ###################################################################################### ###################################################################################
+		lw		$a0, 1
+		move	$s0, $a0	# The value we will increase
+
+#debug:	j		debug		
+		## ## First, printing the current score with black color
+		## ## (to hide it)
+		## lw		$a0, PLAYER_SCORE		
+		## li		$a1, 3
+		## li		$a2, 3
+		## lw		$a3, BLACK
+		## lw		$v0, SYSCALL_PRINT_INT
+		## syscall
 		
 update_player_draw:		
 		## Draw player fuck yeah
@@ -793,6 +916,53 @@ move_player_continue:
 		addi	$sp, $sp, 4
 		jr		$ra
 
+# # # # # # # # # # # # # # # # # # # # # # #
+# Increases the player's score and redraws it
+# on the screen.
+#
+# Arguments:
+# $a0 How much we will increase the score
+#
+# Internal Use:
+# $s0
+increase_score:
+		addi	$sp, $sp, -4
+		sw		$ra, ($sp)
+
+		move	$s0, $a0	# The value we will increase
+		
+		## First, printing the current score with black color
+		## (to hide it)
+		## lw		$a0, PLAYER_SCORE		
+		## li		$a1, 3
+		## li		$a2, 3
+		## lw		$a3, BLACK
+		## lw		$v0, SYSCALL_PRINT_INT
+		## syscall
+		li		$a0, 3
+		li		$a1, 3
+		li		$a2, 40
+		li		$a3, 10
+		lw		$v0, BLACK
+		jal		print_rect
+		
+		## Then, increasing the logical value
+		lw		$a1, PLAYER_SCORE 		# current
+		add		$a1, $s0, $a1			# current += increase
+		sw		$a1, PLAYER_SCORE		# storing it
+		
+		## Finally, print the updated score
+		lw		$a0, PLAYER_SCORE		
+		li		$a1, 3
+		li		$a2, 3
+		lw		$a3, WHITE
+		li		$v0, 1
+		syscall
+		
+		lw		$ra, ($sp)
+		addi	$sp, $sp, 4
+		jr		$ra
+		
 # # # # # # # # # # # # # #		
 # Waits a little bit.
 # How long? It's a mystery.
@@ -990,6 +1160,10 @@ update_blocks_loop2:
 
 		li		$a0, 1
 		jal		invert_ball_axis
+
+		## Increasing player's score
+#		lw		$a0, PLAYER_SCORE_BLOCK
+#		jal		increase_score			
 		
 		## Oh boy, we have to destroy ourselves.
 		## And by destruction I mean:
@@ -1065,6 +1239,7 @@ update_blocks_end:
 
 # 4. DRAWING PROCEDURES
 
+# # # # # # # # # # # # # # # # # # #
 # Prints a single pixel on the screen.
 # 
 # Arguments:
@@ -1093,6 +1268,7 @@ print_pixel:
         sll     $t9, $a1, 12    # send Y offset to the left
         add     $t8, $t8, $t9   # store Y offset on the address
         sw      $a2, 0($t8)     # Actually print the pixel
+
         jr      $ra             # GTFO
 
 # # # # # # # # # # # # # # # # # #		
@@ -1131,7 +1307,6 @@ print_rect:
         sw      $t8, 52($sp)
         sw      $t9, 56($sp)		
 		
-        
 print_rect_start:
         add     $t0, $zero, $a0	  # i = x
         add     $t1, $zero, $a1	  # j = y
@@ -1172,13 +1347,13 @@ print_rect_exit:
         lw      $t0, 20($sp)
         lw      $t1, 24($sp)
         lw      $t2, 28($sp)
-        lw      $t3, 32($sp)
-        lw      $t4, 36($sp)
-        lw      $t5, 40($sp)
-        lw      $t6, 44($sp)
-        lw      $t7, 48($sp)
-        lw      $t8, 52($sp)
-        lw      $t9, 56($sp)		
+        lw      $t3, 32($sp)	# Carry on my wayward son,
+        lw      $t4, 36($sp)	# There'll be peace when you are done
+        lw      $t5, 40($sp)	# Lay your weary head to rest
+        lw      $t6, 44($sp)	# Don't you cry no more
+        lw      $t7, 48($sp)	# (drums)
+        lw      $t8, 52($sp)	# (awesome guitar licks)
+        lw      $t9, 56($sp)	# (some guitar solos)
 		
         addi    $sp, $sp, 60
         jr      $ra             # GTFO
@@ -1218,7 +1393,10 @@ clear_screen:
 		addi	$sp, $sp, 4
 		jr		$ra
 
-# Shows the borders on all four sides.		
+# # # # # # # # # # # # # # # # # # #		
+# Shows the borders on all four sides.
+#
+#
 print_borders:
 		addi	$sp, $sp, -4
 		sw		$ra, ($sp)
@@ -1332,7 +1510,8 @@ wait_for_input_loop:
 		jr		$ra
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # 		
-# Shows game over screen and waits for input to reset.		
+# Shows game over screen and waits for input to reset.
+# 
 game_over:
 		
 		## Will clear the screen a lot of times waiting
@@ -1408,4 +1587,5 @@ get_color:
 		lw		$ra, ($sp)
 		addi	$sp, $sp, 4		
 		jr		$ra
+
 		
