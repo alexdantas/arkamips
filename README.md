@@ -13,6 +13,17 @@ I'm proud to say the code is very well-commented and anyone should not have any
 problems understanding the code (as long as they have a medium understanding on
 MIPS Assembly). 
 
+# Features
+
+All of the following works on the Altera DE2-70 board:
+
+* Full-colored game on the VGA display.
+* Score and lives show on the LCD display.
+* Intro and game over screens.
+* Controllable with any PS2 keyboard.
+* Bug-ridden gameplay! No, seriously!
+* Well-commented code with most features tweakable at `.data`.
+
 # Notes
 
 This currently works on the DE2-70 Altera programmable board only. We use
@@ -50,5 +61,6 @@ the code won't complain.
 The whole project was made by two awesome guys:
 
 Alexandre Dantas <eu@alexdantas.net>
+
 Matheus Pimenta <matheuscscp@gmail.com>
 

@@ -15,7 +15,7 @@
 #  and Organization', 1st semester of 2013 at
 #  Universidade de Brasilia (UnB), Brazil"
 #
-# You control a pad with the keys 'h' and 'k' of
+# You control a pad with the keys left and right of
 # a PS2 keyboard.
 #
 # Start Date:        Thu Jul 11 00:12:07 BRT 2013
@@ -45,6 +45,12 @@ BITMAP_HEIGHT:    .word   240
 # MARS Bitmap simulator's settings
 #BITMAP_ADDR:      .word   0x10008000
 
+# Address of the LCD display, first and second lines.
+# By writing anything to LCD_CLEAR, we clear the screen.
+LCD_ADDR_LINE1:	.word	0x70000000
+LCD_ADDR_LINE2:	.word	0x70000010
+LCD_ADDR_CLEAR:	.word	0x70000020
+		
 # We will print these strings across the game with our custom
 # syscall.
 # NOTE: Misteriously I couldn't lay down several strings contiguous
@@ -73,18 +79,22 @@ INTRO_SQUARES:	.word	4		# How many squares on the intro screen
 # The raw data format is:
 #      (16 zero bits) 0000 0000 BBGG GRRR
 		
-DARK_RED:		.word   0x00000004
-LIME_GREEN:		.word	0x0000007B		
-BLUE:			.word   0x000000C0
-DARK_MAGENTA:	.word   0x000000C3		
 ORANGE:			.word	0x0000001F
-GREEN:			.word	0x00000038
+BLUE:			.word   0x000000C0		
 MAGENTA:		.word   0x000000C7
 YELLOW:			.word	0x0000003F		
 CYAN:			.word	0x000000F8
 WHITE:			.word	0x000000FF
-DARK_GREEN:		.word	0x00000018		
+LIME_GREEN:		.word	0x0000007B
 		
+DARK_ORANGE:	.word   0x0000001B
+DARK_BLUE:		.word   0x00000040
+DARK_MAGENTA:	.word   0x00000043
+DARK_YELLOW:	.word	0x0000001B		
+DARK_CYAN:		.word	0x0000005B
+DARK_WHITE:		.word	0x0000005B
+DARK_GREEN:		.word	0x00000038
+	
 # The colors above are all the colors I use for showing
 # the blocks. I choose them "randomly", based on their
 # position.
@@ -95,7 +105,7 @@ DARK_GREEN:		.word	0x00000018
 # 
 # If you want to add another color, append it AFTER
 # the last one and increase this number.
-COLOR_AMMOUNT:	.word	11
+COLOR_AMMOUNT:	.word	7
 
 # Black and Red are here because we don't print any
 # blocks with them.
@@ -113,11 +123,11 @@ BALL_WIDTH:			.word   10
 BALL_HEIGHT:		.word	10
 
 PLAYER_SPEEDX_INIT:	.word   3
-PLAYER_POSX_INIT:	.word   150
-PLAYER_POSY_INIT:	.word   200		
+PLAYER_POSX_INIT:	.word   125
+PLAYER_POSY_INIT:	.word   205		
 PLAYER_WIDTH:		.word   40
 PLAYER_HEIGHT:		.word	10
-PLAYER_LIVES_INIT:	.word   2	# How many lives the player has initially
+PLAYER_LIVES_INIT:	.word   3	# How many lives the player has initially
 								# (counting from zero)
 		
 PLAYER_SCORE_INIT:	.word	0	# Initial score is always zero.
@@ -164,8 +174,7 @@ SYSCALL_EXIT:   		.word   10
 # Our custom syscall that sees if any of the keys of the game
 # are being pressed.
 #
-# $a0 If it's 0, we see the left key ('h'). If it's 1, the
-#     right key ('k').
+# $a0 If it's 0, we see the LEFT key. If it's 1, the RIGHT key.
 # $v0 0 if the key's not pressed, 1 if it is.    
 SYSCALL_KEYBOARD:		.word	50
 
@@ -178,13 +187,16 @@ SYSCALL_PRINT_INT:		.word	1
 ### Now we have the global "variables",
 ### that we can change during the game
 		
-# All the blocks in a 2D array
-# This is the whole level.
-# -1 marks end of lines and -2 marks end of rows.
-BLOCKS:			.word	1, 1, 1, 1, 1, 1, 1, 1, 1, -1, 1, 1, 1, 1, 1, 1, 1, 1, 1, -1, 1, 1, 1, 1, 1, 1, 1, 1, 1, -1, 1, 1, 1, 1, 1, 1, 1, 1, 1, -1, 1, 1, 1, 1, 1, 1, 1, 1, 1, -1, 1, 1, 1, 1, 1, 1, 1, 1, 1, -1, 1, 1, 1, 1, 1, 1, 1, 1, 1, -2
+# All the blocks in a 2D array. This is the whole level.
+#  2 marks blocks with 2 life points
+#  1 marks blocks with 1 life point,
+#  0 marks unexisting blocks
+# -1 marks end of lines
+# -2 marks end of rows.
+BLOCKS:	.word	2, 2, 2, 2, 2, 2, 2, 2, 2, -1, 2, 1, 2, 1, 2, 1, 2, 1, 2, -1, 2, 1, 1, 2, 1, 1, 2, 1, 1, -1, 1, 2, 1, 1, 1, 2, 1, 1, 1, -1, 2, 1, 1, 1, 1, 1, 1, 1, 2, -1, 1, 1, 2, 2, 1, 1, 1, 1, 1, -1, 2, 1, 1, 1, 2, 1, 1, 1, 2, -2
 		
 # The original values to restore when needed
-BLOCKS_ORIG:	.word	1, 1, 1, 1, 1, 1, 1, 1, 1, -1, 1, 1, 1, 1, 1, 1, 1, 1, 1, -1, 1, 1, 1, 1, 1, 1, 1, 1, 1, -1, 1, 1, 1, 1, 1, 1, 1, 1, 1, -1, 1, 1, 1, 1, 1, 1, 1, 1, 1, -1, 1, 1, 1, 1, 1, 1, 1, 1, 1, -1, 1, 1, 1, 1, 1, 1, 1, 1, 1, -2
+BLOCKS_ORIG:	.word	2, 2, 2, 2, 2, 2, 2, 2, 2, -1, 2, 1, 2, 1, 2, 1, 2, 1, 2, -1, 2, 1, 1, 2, 1, 1, 2, 1, 1, -1, 1, 2, 1, 1, 1, 2, 1, 1, 1, -1, 2, 1, 1, 1, 1, 1, 1, 1, 2, -1, 1, 1, 2, 2, 1, 1, 1, 1, 1, -1, 2, 1, 1, 1, 2, 1, 1, 1, 2, -2
 		
 BALL_X:			.word	150
 BALL_Y:			.word	70
@@ -212,10 +224,8 @@ main:
 		## Keep showing the intro until player hits a key
 		jal		intro
 
-		li		$a0, 1
-		jal		increase_score	# Printing score for the first time
-		
 		## Actually starts stuff
+		jal		init_score
 		jal		init_player		
 		jal		init_ball		
 		jal		init_blocks
@@ -224,7 +234,6 @@ gameloop:
 		jal		wait
 
 		jal		print_borders
-#		jal		print_lives
 		jal		update_blocks		
 		jal		update_player
 		jal		update_ball
@@ -266,121 +275,68 @@ end:	lw      $v0, SYSCALL_EXIT
 # NOTE: I follow the convention of registers preserved across calls.
 #       You'll see a lot of use on the temporary registers ($tX)
 
-# 1. INITIALIZATION PROCEDURES
-
 # Shows some pretty stuff on the screen, while waiting for the
 # user to press something.
 # Will keep looping forever if the user don't press anything.
 # 
-# NOTE: It only checks the keys used on the game ('h' and 'k')
+# NOTE: It only checks the keys used on the game (left or right)
 #
 intro:
 		addi	$sp, $sp, -4
-		sw		$ra, ($sp)			# Saving $ra
+		sw		$ra, ($sp)		# Saving $ra
 
-		lw		$a0, BLACK
+
+		
+		## Will clear the screen a lot of times waiting
+		## for the user to press any key (left or right)
+intro_loop:
+		lw		$a0, BLUE 		# bg
 		jal		clear_screen
-		
-		## First, this is the text on the lower part of the screen.
-		## It only gets printed once because the squares don't touch it.
-		
-		lw		$a0, RED				# Get Foreground/Background
-		lw		$a1, BLACK				# color, in our case, RED/BLACK
+
+
+		lw		$a0, RED		# Getting FG/BG color
+		lw		$a1, BLUE
 		jal		get_color
 		move	$a3, $v0
 		
-		la		$a0, ARKAMIPS_STRING	# Show string1
+		la		$a0, ARKAMIPS_STRING	# Then the text
 		li		$a1, 20
 		li		$a2, 200
-		lw		$v0, SYSCALL_PRINT_STRING
+		li		$v0, 4
 		syscall
 
-		la		$a0, INTRO_STRING		# Show string2
+		la		$a0, INTRO_STRING	# Then the text
 		li		$a1, 20
 		li		$a2, 220
-		lw		$v0, SYSCALL_PRINT_STRING
+		li		$v0, 4
+		syscall
+		
+		jal		is_any_key_pressed 		# Then the key
+		bne		$v0, $zero, intro_quit
+
+		lw		$a0, BLACK
+		jal		clear_screen
+
+		lw		$a0, RED
+		lw		$a1, BLACK
+		jal		get_color
+		move	$a3, $v0
+		
+		la		$a0, ARKAMIPS_STRING
+		li		$a1, 20
+		li		$a2, 200
+		li		$v0, 4
 		syscall
 
-		## The intro will print n squares with changing colors.
-		## Their sizes depend on the screen size. They'll be:
-		##
-		## square_width = (screen_width - ((n + 1) * spacing))/n
-		##
-		## That spacing is the width between each square.
+		la		$a0, INTRO_STRING	# Then the text
+		li		$a1, 20
+		li		$a2, 220
+		li		$v0, 4
+		syscall
+		
+		jal		is_any_key_pressed 		# if (!getch()) goto intro_loop
+		beq		$v0, $zero, intro_loop
 
-		lw		$t0, INTRO_SQUARES	# number of squares (n)
-		add		$t0, $t0, 1			# n + 1
-		lw		$t1, INTRO_SPACING	# spacing
-		mult	$t0, $t1			#
-		mflo	$t0					# (n + 1) * spacing
-		lw		$t1, INTRO_SQUARES	# n again
-		lw		$t1, BITMAP_WIDTH	# screen_width
-		sub		$t0, $t1, $t0		# screen_width - ((n + 1) * spacing)
-		div		$t0, $t1			#
-		mflo	$t0					# (screen_width - ((n + 1) * spacing))/n
-		
-		## Now $t0 contains the width each square needs to have.
-
-		## On our intro, we will print some squares, each with a
-		## random color. Their colors will change on each frame,
-		## making a very colourful experience.
-		## 
-		## All of this while waiting for the user to press
-		## any key (left or right).
-
-		add		$t9, $zero, $zero	# This will hold the number of the color
-									# to print the current rectangle.
-									# It will start by 0 and increment, while
-									# keeping it's limit inside COLOR_AMMOUNT.
-		
-intro_loop:
-		add		$t1, $zero, $zero 	# i = 0
-		
-intro_sub_loop:
-		## This prints all the 4 squares and checks for input once
-		
-		lw		$t2, INTRO_SQUARES		#
-		addi	$t2, $t2, -1			#
-		slt		$t2, $t1, $t2			# if (i < (n - 1)) then continue
-		beq		$t2, $zero, intro_loop	# else, restart the loop
-		
-		add		$t9, $t9, 1		   	# color++
-		lw		$t7, COLOR_AMMOUNT	# (C is the max number of colors I have)
-		div		$t9, $t7			#
-		mfhi	$t8					# color % C
-		sll		$t8, $t8, 2			# [color % C]
-		la		$t7, DARK_RED		# address of the first color
-		add		$t8, $t8, $t7		# colors[color % C]
-		lw		$t8, ($t8)			# get colors[color % C]
-
-		## $t8 has the address of the color to use on the current rectangle
-
-		## And now.. the x position of each rectangle
-		## 
-		## That's according to:
-		##
-		## x = (i * (rectangle_width + spacing)) + spacing
-		
-		lw		$t3, INTRO_SPACING	# spacing
-		add		$t3, $t3, $t0		# (rectangle_width + spacing)
-		mult	$t3, $t1			#
-		mflo	$t3					# i * (rectangle_width + spacing)
-		add		$t3, $t3, $t0		# spacing + (i * (rectangle_width + spacing))
-
-		move	$a0, $t3		   	# x
-		lw		$a1, INTRO_SPACING	# y
-		move	$a2, $t0			# w
-		li		$a2, 30			# w		
-#		li		$a3, 30				# h
-		move	$v0, $t8			# color
-		jal		print_rect
-		
-		jal		is_any_key_pressed 		# if any key pressed, get the
-		bne		$v0, $zero, intro_quit	# fucking out of here
-		
-		add		$t1, $t1, 1		   # i++		
-		j		intro_sub_loop
-		
 intro_quit:		
 		lw		$a0, BLACK		# Quitting the intro
 		jal		clear_screen
@@ -579,10 +535,101 @@ init_blocks_loop_rows_end:
 		lw		$ra, ($sp)
 		add		$sp, $sp, 4
 		jr		$ra
+
+# # # # # # # # # # # # # # # # # # # # #
+# Initializes the score and LCD display.
+#
+# It's on the LCD where we print the score, here we clean
+# it and show the score for the first time.
+# 
+init_score:
+		add		$sp, $sp, -4
+		sw		$ra, ($sp)
+
+		lw		$t0, PLAYER_SCORE_INIT 	# Reseting logical score value
+		sw		$t0, PLAYER_SCORE
+
+		sw		$zero, LCD_ADDR_CLEAR	# Clearing LCD
+		
+		lw		$t0, LCD_ADDR_LINE1		# Will print some stuff on it...
+		
+		li		$t1, 0x53				# 'S'
+		sw		$t1, 0($t0)
+
+		li		$t1, 0x63				# 'c'
+		sw		$t1, 1($t0)
+		
+		li		$t1, 0x6F				# 'o'
+		sw		$t1, 2($t0)
+
+		li		$t1, 0x72				# 'r'
+		sw		$t1, 3($t0)
+
+		li		$t1, 0x65				# 'e'
+		sw		$t1, 4($t0)
+
+		li		$t1, 0x3A				# ':'
+		sw		$t1, 5($t0)
+
+		li		$t1, 0x20				# ' '
+		sw		$t1, 6($t0)
+		
+		## From now on, the current score must be printed from
+		## 7(LCD_ADDR_LINE1) up.
+		## 
+		## It means that the first digit of the score will be
+		## at 7(LCD_ADDR_LINE1) and the second digit will be
+		## at 8(LCD_ADDR_LINE1).
+		##
+		## That's what increase_score does.
+		
+		li		$a0, 0			#
+		jal		increase_score	# Printing score for the first time
+
+		## Now we print on the second line
+		lw		$t0, LCD_ADDR_LINE2
+		
+		li		$t1, 0x4C				# 'L'
+		sw		$t1, 0($t0)
+
+		li		$t1, 0x69				# 'i'
+		sw		$t1, 1($t0)
+		
+		li		$t1, 0x76				# 'v'
+		sw		$t1, 2($t0)
+
+		li		$t1, 0x65				# 'e'
+		sw		$t1, 3($t0)
+
+		li		$t1, 0x73				# 's'
+		sw		$t1, 4($t0)
+		
+		li		$t1, 0x3A				# ':'
+		sw		$t1, 5($t0)
+
+		li		$t1, 0x20				# ' '
+		sw		$t1, 6($t0)
+
+		## And from now on, the current lives ammount should be printed
+		## on 7(LCD_ADDR_LINE1) up.
+		## 
+		## We will initialize it here:
+
+		lw		$t1, PLAYER_LIVES_INIT # Initializing the lives count
+		sw		$t1, PLAYER_LIVES	   # from default.
+		addi	$t1, $t1, 0x30		   # Also, printing it on LCD (0x30 is
+		sw		$t1, 7($t0)			   # the '0' digit on ASCII)
+		
+		lw		$ra, ($sp)
+		add		$sp, $sp, 4
+		jr		$ra
 		
 # # # # # # # # # # # # # # # # #
 # Initializes player's variables.
 #
+# NOTE: You MUST call init_score first, this doesn't take care of
+#       the score or lives count!
+#       
 # Internal Use:
 # $t0
 # 
@@ -596,13 +643,6 @@ init_player:
 		sw		$t0, PLAYER_Y
 		lw		$t0, PLAYER_SPEEDX_INIT
 		sw		$t0, PLAYER_SPEEDX
-		lw		$t0, PLAYER_LIVES_INIT
-		sw		$t0, PLAYER_LIVES
-		lw		$t0, PLAYER_SCORE_INIT
-		sw		$t0, PLAYER_SCORE
-		
-#		li		$a0, 0
-#		jal		increase_score	# Printing score for the first time
 		
 		lw		$ra, ($sp)
 		add		$sp, $sp, 4
@@ -640,8 +680,12 @@ update_ball:
 		addi	$t0, $t0, -1			# lives--
 		sw		$t0, PLAYER_LIVES
 
-		slt		$t1, $t0, $zero			# if (lives < 0) then...
-		bne		$t1, $zero, game_over	# ...show game over screen!
+										# Refreshing LCD value!
+		lw		$a0, LCD_ADDR_LINE2		# Will print on LCD's address
+		addi	$a1, $t0, 0x30			# the ASCII character
+		sw		$a1, 7($a0)				# of the number of lives
+		
+		beq		$t0, $zero, game_over	# if (lives == 0) go to game over screen!
 
 		## We lost a life.
 		## Let's wait a little, restore the ball's position,
@@ -814,9 +858,9 @@ update_player:
 
 update_player_test_right_bound:	
 		lw		$t0, PLAYER_X		# Testing rightmost bound
-		lw		$t1, PLAYER_WIDTH
+		lw		$t1, PLAYER_WIDTH	#
 		add		$t1, $t0, $t1		# x + w
-		lw		$t2, BITMAP_WIDTH
+		lw		$t2, BITMAP_WIDTH	#
 		slt		$t3, $t1, $t2		# if (x + w < screen_w)
 		bne		$t3, $zero, update_player_test_left_bound
 		
@@ -825,7 +869,7 @@ update_player_test_right_bound:
 		
 update_player_test_left_bound:
 		lw		$t0, PLAYER_X		# Testing leftmost bound
-		li		$t1, 0
+		li		$t1, 0				#
 		slt		$t3, $t1, $t0		# if (x > 0) continue
 		bne		$t3, $zero, update_player_test_left_key
 
@@ -856,19 +900,9 @@ update_player_test_right_key:
 		## right key pressed, make it move!
 		li		$a0, 1
 		jal		move_player
-### ###################################################################################### ###################################################################################### ###################################################################################### ###################################################################################### ###################################################################################### ###################################################################################### ###################################################################################
+
 		lw		$a0, 1
 		move	$s0, $a0	# The value we will increase
-
-#debug:	j		debug		
-		## ## First, printing the current score with black color
-		## ## (to hide it)
-		## lw		$a0, PLAYER_SCORE		
-		## li		$a1, 3
-		## li		$a2, 3
-		## lw		$a3, BLACK
-		## lw		$v0, SYSCALL_PRINT_INT
-		## syscall
 		
 update_player_draw:		
 		## Draw player fuck yeah
@@ -931,20 +965,11 @@ increase_score:
 
 		move	$s0, $a0	# The value we will increase
 		
-		## First, printing the current score with black color
-		## (to hide it)
-		## lw		$a0, PLAYER_SCORE		
-		## li		$a1, 3
-		## li		$a2, 3
-		## lw		$a3, BLACK
-		## lw		$v0, SYSCALL_PRINT_INT
-		## syscall
-		li		$a0, 3
-		li		$a1, 3
-		li		$a2, 40
-		li		$a3, 10
-		lw		$v0, BLACK
-		jal		print_rect
+		## First, clearing the two digits after 'Score: '
+		lw		$t0, LCD_ADDR_LINE1		
+		li		$t1, 0x20				# ' '
+		sw		$t1, 7($t0)
+		sw		$t1, 8($t0)		
 		
 		## Then, increasing the logical value
 		lw		$a1, PLAYER_SCORE 		# current
@@ -952,12 +977,22 @@ increase_score:
 		sw		$a1, PLAYER_SCORE		# storing it
 		
 		## Finally, print the updated score
-		lw		$a0, PLAYER_SCORE		
-		li		$a1, 3
-		li		$a2, 3
-		lw		$a3, WHITE
-		li		$v0, 1
-		syscall
+		## Will print two digits.
+		## The left one is (score/10), the right one is (score%10)
+		li		$a0, 10					# 10
+		lw		$a1, PLAYER_SCORE		# score
+		div		$a1, $a0				#
+		mfhi	$a0						# score % 10 
+		mflo	$a1						# score / 10
+		
+		## Remember that when storing the digit on the LCD, we
+		## must store it's ASCII value. Thus, we add to the first
+		## ASCII digit, '0' (that is 0x30)
+		addi	$a1, $a1, 0x30
+		addi	$a0, $a0, 0x30
+		
+		sw		$a1, 7($t0)				# first digit
+		sw		$a0, 8($t0)				# second digit
 		
 		lw		$ra, ($sp)
 		addi	$sp, $sp, 4
@@ -1003,9 +1038,15 @@ wait_loop_end:
 #
 # Internal Use:
 # $v0 Temporary for sums
+# $s7 Temporary for sums (NOT RECOMMENDED, MUST FIND A WAY AROUND IT)
 # 
 # Returns:
-# $v0 1 if collided, 0 if not
+# $v0 0 if not collided, 1 if collided, 2 if laterally collided
+#
+# By laterally collided I mean like this:
+#  _   _____________           _____________   _
+# |_|>|_____________|    or   |_____________|<|_|
+#
 collided_rect:
 		
 		## Need to test 4 conditions.
@@ -1036,6 +1077,54 @@ collided_rect:
 		beq		$v0, $zero, collided_rect_false
 		
 collided_rect_true:
+		## Now that we know we've collided, let's see if they've
+		## collided from the side.
+		##
+		## On our game, we test if the BALL has collided with the
+		## BLOCK. If it has collided from up or down we simply
+		## invert the Y axis.
+		## If it collides with the block from left or right,
+		## we invert it's X axis.
+		## Here's where we diferentiate those cases.
+
+		## First, to have collided from the side, we have one of those:
+		## * x1      < x2
+		## * x1 + w1 > x2 + w2
+
+collided_rect_true_test1:		
+		add		$v0, $zero, $a0	# x1 < x2 which means...
+		slt		$v0, $v0, $t0	# a0 < t0
+		beq		$v0, $zero, collided_rect_true_test2
+		j		collided_rect_true_test3
+		
+collided_rect_true_test2:
+		add		$v0, $a0, $a2	# x1 + w1 > x2 + w2 which means...
+		add		$s7, $t0, $t2
+		slt		$v0, $s7, $v0	# a0 + a2 > t0 + t2
+		beq		$v0, $zero, collided_rect_true_not_laterally
+		
+		## Then, we also need one of those:
+		## * y1 < y2
+		## * y1 > y2 && y1 < y2 + h2
+		
+collided_rect_true_test3:
+		add		$v0, $zero, $a1	# y1 < y2 which means...
+		slt		$v0, $v0, $t1	# a1 < t1
+		beq		$v0, $zero, collided_rect_true_test4
+		j		collided_rect_true_laterally
+		
+collided_rect_true_test4:
+		add		$v0, $zero, $a1	# y1 < y2 + h2 which means...
+		add		$s7, $t1, $t3
+		slt		$v0, $s7, $v0	# a1 < t1 + t3
+		beq		$v0, $zero, collided_rect_true_not_laterally
+				
+collided_rect_true_laterally:
+		## Woopity fucking doo, we did it!		
+		li		$v0, 2
+		j		collided_rect_end
+		
+collided_rect_true_not_laterally:
 		li		$v0, 1
 		j		collided_rect_end
 		
@@ -1109,7 +1198,16 @@ update_blocks_loop2:
 													# block is invisible
 
 		## Here the block "exists" and will be printed
-		## 
+		##
+		## Need to see if it's value is 1 or 2.
+		
+		li		$t3, 1
+		beq		$t2, $t3, update_blocks_block1
+
+update_blocks_block2:
+		## Here the block has value 2, which means I will print it with a
+		## lighter color
+		##
 		## Will get a random color between all available on .data (except black)
 		## to show this block, based on it's i and j.
 		
@@ -1118,10 +1216,25 @@ update_blocks_loop2:
 		div		$t6, $t7			#
 		mfhi	$t6					# (i + j) % C
 		sll		$t6, $t6, 2			# [(i + j) % C]
-		la		$t7, DARK_RED		# address of the first color
+		la		$t7, DARK_ORANGE	# address of the first color
 		add		$t6, $t6, $t7		# colors[(i + j) % C]
 		lw		$t6, ($t6)			# get colors[(i + j) % C]
-
+		j		update_blocks_print
+		
+update_blocks_block1:	
+		## Will get a random color between all available on .data (except black)
+		## to show this block, based on it's i and j.
+		
+		add		$t6, $t0, $t1		# i + j
+		lw		$t7, COLOR_AMMOUNT	# (C is the max number of colors I have)
+		div		$t6, $t7			#
+		mfhi	$t6					# (i + j) % C
+		sll		$t6, $t6, 2			# [(i + j) % C]
+		la		$t7, ORANGE			# address of the first color
+		add		$t6, $t6, $t7		# colors[(i + j) % C]
+		lw		$t6, ($t6)			# get colors[(i + j) % C]
+		
+update_blocks_print:	
 		## Printing block
 		
 		move	$a0, $t4		# x
@@ -1156,20 +1269,33 @@ update_blocks_loop2:
 														# out of here
 
 		## Collided! Let's make the ball bounce!
-		## TODO: Check which side of it the ball has collided
+		## Depending on the side of the collision we will make the
+		## ball bounce on the Y axis or X axis.
 
+		li		$a0, 1			# If the return was 1, collided not on the side
+		beq		$v0, $a0, update_blocks_collided_top
+		
+update_blocks_collided_side:
+		li		$a0, 0
+		jal		invert_ball_axis
+		j		update_blocks_collided_increase_score
+		
+update_blocks_collided_top:		
 		li		$a0, 1
 		jal		invert_ball_axis
 
+update_blocks_collided_increase_score:	
 		## Increasing player's score
-#		lw		$a0, PLAYER_SCORE_BLOCK
-#		jal		increase_score			
+		lw		$a0, PLAYER_SCORE_BLOCK
+		jal		increase_score			
 		
 		## Oh boy, we have to destroy ourselves.
 		## And by destruction I mean:
+		## 0. Decrease our value. If we are a '2' block we won't get
+		##    destroyed immediately. If we are a '1' block, keep going.
 		## 1. Painting a black rectangle on where I was
 		## 2. Putting 0 on the blocks array
-		
+
 		lw		$t0, 0($sp)		# restorin' our values - we will need them now
 		lw		$t1, 4($sp)		# Since we will also restore later,
 		lw		$t2, 8($sp)		# don't add to $sp
@@ -1177,16 +1303,7 @@ update_blocks_loop2:
 		lw		$t4, 16($sp)
 		lw		$t5, 20($sp)		
 
-		## Painting a black rectangle
-		move	$a0, $t4		# x
-		move	$a1, $t5		# y
-		lw		$a2, BLOCK_WIDTH
-		lw		$a3, BLOCK_HEIGHT
-		lw		$v0, BLACK
-		jal		print_rect
-		
-		## Set value of the current block to 0
-
+		## Decrease value of the current block
 		lw		$t2, BLOCKS_COLS	# DIS NIGGA RUINED MAH DAY
 		addi	$t2, $t2, 1			# cols + 1
 		mult	$t2, $t0			# i * (cols + 1)
@@ -1195,8 +1312,21 @@ update_blocks_loop2:
 		sll		$t2, $t2, 2			# [j + i * (cols + 1)]
 		la		$t3, BLOCKS			#
 		add		$t2, $t2, $t3		# blocks[j + i * (cols + 1)]
-		sw		$zero, ($t2)		# blocks[j + i * (cols + 1)] = 0
+		lw		$t3, ($t2)			# a = blocks[j + i * (cols + 1)]
+		addi	$t3, $t3, -1		# a--
+		sw		$t3, ($t2)			# blocks[j + i * (cols + 1)] = a
 
+		## If we're not '0' now, skip this.
+		bne		$t3, $zero, update_blocks_collided_end
+		
+		## Painting a black rectangle
+		move	$a0, $t4		# x
+		move	$a1, $t5		# y
+		lw		$a2, BLOCK_WIDTH
+		lw		$a3, BLOCK_HEIGHT
+		lw		$v0, BLACK
+		jal		print_rect
+		
 update_blocks_collided_end:		
 		lw		$t0, 0($sp)		# restorin'
 		lw		$t1, 4($sp)
@@ -1235,10 +1365,6 @@ update_blocks_end:
         addi    $sp, $sp, 4
 		jr		$ra
 		
-# 3. TIMING PROCEDURES
-
-# 4. DRAWING PROCEDURES
-
 # # # # # # # # # # # # # # # # # # #
 # Prints a single pixel on the screen.
 # 
@@ -1430,56 +1556,20 @@ print_borders:
 		addi	$sp, $sp, 4
 		jr		$ra
 
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# Shows how many lives the player has on the lop left corner of the screen.
-# 
-print_lives:
-		addi	$sp, $sp, -4
-		sw		$ra, ($sp)
-
-		lw		$t0, PLAYER_LIVES 				# i = lives
-		
-print_lives_loop:
-		slt		$t7, $t0, $zero		
-		bne		$t7, $zero, print_lives_end		# if (i < 0) stop printing
-
-		lw		$t1, LIVES_SPACING		# spacing
-		lw		$t2, LIVES_WIDTH		#
-		add		$t1, $t1, $t2			# spacing + width
-		mult	$t0, $t1				#
-		mflo	$t1						# i*(spacing + width)
-		lw		$t2, LIVES_WIDTH		#
-		add		$t1, $t1, $t2			# spacing + i*(spacing + width)
-
-		move	$a0, $t1				# x
-		lw		$a1, LIVES_SPACING		# y
-		lw		$a2, LIVES_WIDTH
-		lw		$a3, LIVES_HEIGHT
-		lw		$v0, GREEN
-		jal		print_rect
-		
-		addi	$t0, $t0, -1			# i--
-		j		print_lives_loop
-
-print_lives_end:		
-		lw		$ra, ($sp)
-		addi	$sp, $sp, 4
-		jr		$ra
-
 # # # # # # # # # # # # # # # # # # # # # # # #
 # Tells if any key is being pressed right now.
 #
-# NOTE: It only checks the keys used on the game ('h' and 'k')
+# NOTE: It only checks the keys used on the game (left or right)
 #
 # Return:
 # $v0 0 if none is being pressed, 1 if any one is
 is_any_key_pressed:
-		li		$a0, 0			# Checking if 'h' is being pressed
+		li		$a0, 0			# Checking if left is being pressed
 		lw		$v0, SYSCALL_KEYBOARD
 		syscall
 		bne		$v0, $zero, is_any_key_pressed_true
 
-		li		$a0, 1			# Checking if 'k' is being pressed
+		li		$a0, 1			# Checking if right is being pressed
 		lw		$v0, SYSCALL_KEYBOARD
 		syscall
 		bne		$v0, $zero, is_any_key_pressed_true
@@ -1515,12 +1605,12 @@ wait_for_input_loop:
 game_over:
 		
 		## Will clear the screen a lot of times waiting
-		## for the user to press any key ('h' or 'k')
+		## for the user to press any key (left or right)
 game_over_loop:
 		lw		$a0, RED 			# First the bg
 		jal		clear_screen
 
-		lw		$a0, BLACK		# Getting FG/BG color
+		lw		$a0, BLACK			# Getting FG/BG color
 		lw		$a1, RED
 		jal		get_color
 		move	$a3, $v0
@@ -1588,4 +1678,5 @@ get_color:
 		addi	$sp, $sp, 4		
 		jr		$ra
 
-		
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # END OF IT ALL
+# THANKS FOR WATCHING
